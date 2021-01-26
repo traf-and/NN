@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import Toplevel, filedialog 
 import numpy as np
 from numpy.lib.npyio import loadtxt
+import module as md
 
 class Window():
     class Entr_win(tk.Toplevel):
@@ -38,18 +39,19 @@ class Window():
             self.path = None # file path
             self.nn_in = [] # file IN
             self.nn_out = [] # file OUT
+            self.nn_obj = None
             self.pred = []
             self.pred = [] # preditcion
             self.title("NN")
             button_open=tk.Button(self,text='Open File',width=25,height=3,font='arial 14', command=self.open_file)
-            button_lm=tk.Button(self,text='NN LM',width=25,height=3,font='arial 14')
+            button_lm=tk.Button(self,text='NN LM',width=25,height=3,font='arial 14', command=self.but_lm)
             button_adam=tk.Button(self,text='NN ADAM',width=25,height=3,font='arial 14')
             button_lstm=tk.Button(self,text='NN LSTM',width=25,height=3,font='arial 14')
             button_pred=tk.Button(self,text='Predict',width=25,height=3,font='arial 14')
             button_test=tk.Button(self,text='Test',width=25,height=3,font='arial 14')
             #button_lin=tk.Button(self,text='Text processing',width=25,height=3,font='arial 14')
             button_script=tk.Button(self,text='Script',width=25,height=3,font='arial 14')
-            button_close=tk.Button(self,text='Clsoe app',width=25,height=3,font='arial 14')
+            button_close=tk.Button(self,text='Clsoe app',width=25,height=3,font='arial 14', command=self.destroy)
 
             button_open.pack()
             button_lm.pack()
@@ -81,8 +83,9 @@ class Window():
             self.nn_out=a[self.nn_out[0] : self.nn_out[-1]+1, :]
         
         def but_lm(self):
-            pass
-        
+            in_trn, in_test=md.crt_valid(self.nn_in)
+
+            
         def but_adam(self):
             pass
         
@@ -100,8 +103,7 @@ class Window():
         """
         def but_script(self):
             pass
-        def but_clsoe(self):
-            pass
+
 
 
 root = Window.Top()
