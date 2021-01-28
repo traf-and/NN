@@ -12,7 +12,7 @@ class Net_tr(tr.nn.Module):
         left = sizes[0]
         layers = []
         for right,f in zip(sizes[1:],funs):
-            if typ=="ADAM":
+            if typ=="Lin":
                 layers.append(tr.nn.Linear(left,right))
             elif typ=="LSTM":
                 layers.append(tr.nn.LSTM(left,right))
@@ -38,11 +38,11 @@ def crt_valid(a):
 def loss(pred,target):
     return(((pred - target)**2).mean())
 
-def lm_NN(nn_obj, nn_in, nn_out,  min_n, max_n, n_epochs=50, conf=[1,1,1], test_nn=True):
+def lm_NN(nn_obj, nn_in, nn_out,  min_n, max_n, n_epochs=50, conf=[1,1,1], sect_ner=True):
     min_loss=20000
     nn_in=np.array(nn_in)
     nn_out=np.array(nn_out)
-    if test_nn:
+    if sect_ner:
         for i in range(1, len(conf)-1):
             b=conf[i]
             for j in range(min_n, max_n+1):
@@ -58,16 +58,16 @@ def lm_NN(nn_obj, nn_in, nn_out,  min_n, max_n, n_epochs=50, conf=[1,1,1], test_
     nn_obj = prn.CreateNN(conf)
     nn_obj = prn.train_LM(nn_in,nn_out,nn_obj,verbose=False,k_max=n_epochs,E_stop=1e-5)
     #TODO: create MSE train graph
-    return nn_obj
+    return nn_obj, conf
 
-def torch_NN(nn_obj, nn_in, nn_out,  min_n, max_n, n_epochs=50, conf=[1,1,1], test_nn=True, typ="Lin"):
+def torch_NN(nn_obj, nn_in, nn_out,  min_n, max_n, n_epochs=50, conf=[1,1,1], sect_ner=True, typ="Lin"):
     nn_in=tr.from_numpy(np.c_(nn_in)).float()
     nn_out=tr.from_numpy(np.c_(nn_out)).float()
     min_loss=20000
     f_tanh = tr.nn.Tanh()
     f_sigma = tr.nn.Sigmoid()
     f_relu = tr.nn.ReLU()
-    if test_nn:
+    if sect_ner:
         for i in range(1, len(conf)-1):
             b=conf[i]
             for j in range(min_n, max_n+1):
@@ -79,10 +79,10 @@ def torch_NN(nn_obj, nn_in, nn_out,  min_n, max_n, n_epochs=50, conf=[1,1,1], te
                     min_loss=a
                     b=j
             conf[i]=b
-    nn_obj = Net_tr(conf,funs=[f_tanh,f_tanh,0])
+    nn_obj = Net_tr(sizes=conf, typ=typ, funs=[f_tanh,f_tanh,0],)
     optimizer = tr.optim.Adam(nn_obj.parameters(), lr=0.001)
 
-    for epoch_index in range(20000):
+    for epoch_index in range(n_epochs):
         optimizer.zero_grad()
 
         y_pred = nn_obj.forward(nn_in)
@@ -93,7 +93,51 @@ def torch_NN(nn_obj, nn_in, nn_out,  min_n, max_n, n_epochs=50, conf=[1,1,1], te
         optimizer.step()
         if epoch_index%500==0:
             print(loss_val)
+    return nn_obj, conf
+
+
+def pred(nn_obj, nn_in):
+    if type(nn_obj)=='dict':
+        y_pred = prn.NNOut(nn_in, nn_obj)
+    elif type(nn_obj)=='__main__.Net':
+        y_pred = nn_obj.forward(nn_in)
+    return y_pred
+
+
+
+def test(nn_obj, nn_in, nn_out):
+    if type(nn_obj)=='dict':
+        y_pred = prn.NNOut(nn_in, nn_obj)
+    elif type(nn_obj)=='__main__.Net':
+        y_pred = nn_obj.forward(nn_in)
+    return loss(y_pred, nn_out)
+
+def save_nn(nn_obj, path):
+    if type(nn_obj)=='dict':
+        prn.saveNN(nn_obj, path)
+    elif type(nn_obj)=='__main__.Net':
+        tr.save(nn_obj, path)
+    else:
+        print("error")
+
+def load_nn(path):
+    if path[-3:-1]=="csv":
+        nn_obj = prn.loadNN(path)
+    elif path[-2:-1]=="pt":
+        nn_obj = tr.load(path)
+        nn_obj.eval()
+    else:
+        print("error")
     return nn_obj
 
-def crt_NN(nn_obj, nn_in, nn_out, nn_trn, nn_test, min_n, max_n, tr_funs, conf=[1,1,1], test_nn=True, typ="Lin"):
-    pass
+def crt_NN(nn_obj, nn_in, nn_out, nn_in_valid, min_n, max_n, n_epochs, tr_funs, conf=[1,1,1], sect_ner=True, typ="Lin"):
+    if typ=="Lin":
+        nn_obj,conf=torch_NN(nn_obj, nn_in, nn_out, min_n, max_n, n_epochs, tr_funs, conf, sect_ner, typ="Lin")
+        y_pred=nn_obj.forward(nn_in_valid)
+    elif typ=="LSTM":
+        nn_obj, conf=torch_NN(nn_obj, nn_in, nn_out,  min_n, max_n, n_epochs, tr_funs, conf, sect_ner, typ="LSTM")
+        y_pred=nn_obj.forward(nn_in_valid)
+    elif typ=="LM":
+        nn_obj, conf=lm_NN(nn_obj, nn_in, nn_out,  min_n, max_n, n_epochs, conf, sect_ner)
+        y_pred=prn.NNOut(nn_in_valid, nn_obj)
+    return nn_obj, y_pred, conf
