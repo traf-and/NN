@@ -32,13 +32,12 @@ def crt_valid(a):
         a_trn.append(a[i][0:int(len(a[i])*0.7)])
         a_trn[i].extend(a[i][int(len(a[i])*0.8):])
         a_test.append(a[i][int(len(a[i])*0.7) : int(len(a[i])*0.8)])
-    print(a_trn[1])
     return a_trn, a_test
 
 def loss(pred,target):
     return(((pred - target)**2).mean())
 
-def lm_NN(nn_obj, nn_in, nn_out,  min_n, max_n, n_epochs=50, conf=[1,1,1], sect_ner=True):
+def lm_NN(nn_obj, nn_in, nn_out, er_tar,  min_n, max_n, n_epochs=50, conf=[1,1,1], sect_ner=True):
     min_loss=20000
     nn_in=np.array(nn_in)
     nn_out=np.array(nn_out)
@@ -48,7 +47,7 @@ def lm_NN(nn_obj, nn_in, nn_out,  min_n, max_n, n_epochs=50, conf=[1,1,1], sect_
             for j in range(min_n, max_n+1):
                 conf[i]=j
                 nn_obj = prn.CreateNN(conf)
-                nn_obj = prn.train_LM(nn_in,nn_out,nn_obj,verbose=True,k_max=1,E_stop=1e-5)
+                nn_obj = prn.train_LM(nn_in,nn_out,nn_obj,verbose=False,k_max=1,E_stop=1e-10)
                 y_pred = prn.NNOut(nn_in, nn_obj)
                 a=loss(y_pred, nn_out)
                 if a<min_loss:
@@ -56,11 +55,16 @@ def lm_NN(nn_obj, nn_in, nn_out,  min_n, max_n, n_epochs=50, conf=[1,1,1], sect_
                     b=j
             conf[i]=b
     nn_obj = prn.CreateNN(conf)
-    nn_obj = prn.train_LM(nn_in,nn_out,nn_obj,verbose=False,k_max=n_epochs,E_stop=1e-5)
-    #TODO: create MSE train graph
+    for i in range(n_epochs):
+        nn_obj = prn.train_LM(nn_in,nn_out,nn_obj,verbose=False,k_max=1,E_stop=1e-5)
+        y_pred = prn.NNOut(nn_in, nn_obj)
+        loss_val = loss(y_pred, nn_out)
+        if loss_val<=er_tar:
+            break
+    print("end")
     return nn_obj, conf
 
-def torch_NN(nn_obj, nn_in, nn_out,  min_n, max_n, n_epochs=50, conf=[1,1,1], sect_ner=True, typ="Lin"):
+def torch_NN(nn_obj, nn_in, nn_out, er_tar,  min_n, max_n, n_epochs=50, conf=[1,1,1], sect_ner=True, typ="Lin"):
     nn_in=tr.from_numpy(np.c_(nn_in)).float()
     nn_out=tr.from_numpy(np.c_(nn_out)).float()
     min_loss=20000
@@ -87,9 +91,9 @@ def torch_NN(nn_obj, nn_in, nn_out,  min_n, max_n, n_epochs=50, conf=[1,1,1], se
 
         y_pred = nn_obj.forward(nn_in)
         loss_val = loss(y_pred, nn_out)
-
+        if loss_val<=er_tar:
+            break
         loss_val.backward()
-        
         optimizer.step()
         if epoch_index%500==0:
             print(loss_val)
@@ -130,14 +134,14 @@ def load_nn(path):
         print("error")
     return nn_obj
 
-def crt_NN(nn_obj, nn_in, nn_out, nn_in_valid, min_n, max_n, n_epochs, tr_funs, conf=[1,1,1], sect_ner=True, typ="Lin"):
+def crt_NN(nn_obj, nn_in, nn_out, nn_in_valid, er_tar, min_n, max_n, n_epochs, tr_funs=[], conf=[1,1,1], sect_ner=True, typ="Lin"):
     if typ=="Lin":
-        nn_obj,conf=torch_NN(nn_obj, nn_in, nn_out, min_n, max_n, n_epochs, tr_funs, conf, sect_ner, typ="Lin")
+        nn_obj,conf=torch_NN(nn_obj, nn_in, nn_out, er_tar, min_n, max_n, n_epochs, tr_funs, conf, sect_ner, typ="Lin")
         y_pred=nn_obj.forward(nn_in_valid)
     elif typ=="LSTM":
-        nn_obj, conf=torch_NN(nn_obj, nn_in, nn_out,  min_n, max_n, n_epochs, tr_funs, conf, sect_ner, typ="LSTM")
+        nn_obj, conf=torch_NN(nn_obj, nn_in, nn_out, er_tar,  min_n, max_n, n_epochs, tr_funs, conf, sect_ner, typ="LSTM")
         y_pred=nn_obj.forward(nn_in_valid)
     elif typ=="LM":
-        nn_obj, conf=lm_NN(nn_obj, nn_in, nn_out,  min_n, max_n, n_epochs, conf, sect_ner)
-        y_pred=prn.NNOut(nn_in_valid, nn_obj)
+        nn_obj, conf=lm_NN(nn_obj, nn_in, nn_out, er_tar,  min_n, max_n, n_epochs, conf, sect_ner)
+        y_pred=prn.NNOut(np.array(nn_in_valid), nn_obj)
     return nn_obj, y_pred, conf
