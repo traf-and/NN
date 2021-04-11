@@ -1,16 +1,12 @@
-from os import terminal_size
+from tkinter.constants import NO
 import numpy as np
-from numpy.core.fromnumeric import shape, size
 import torch as tr
 import pyrenn as prn
 import tkinter as tk
 from tkinter import ttk
 import numpy as np
-from numpy.core.records import array
-from numpy.lib.npyio import loadtxt
 from matplotlib.figure import Figure 
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,NavigationToolbar2Tk)
-import module as md
 import script as sc
 
 
@@ -20,7 +16,6 @@ class Entr_win(tk.Toplevel):
         super().__init__()
         self.str_in=[]
         self.title(title_txt)
-
         if comb_txt:
             self.name=[0]*num_fld
             ent=[0]*num_fld
@@ -81,7 +76,6 @@ class Top(tk.Tk):
         button_test=tk.Button(self,text='Test',width=25,height=3,font='arial 14', command=self.but_test)
         button_save=tk.Button(self,text='Save NN',width=25,height=3,font='arial 14', command=self.but_save_net)
         button_load=tk.Button(self,text='Load NN',width=25,height=3,font='arial 14', command=self.but_load_net)
-        #button_lin=tk.Button(self,text='Text processing',width=25,height=3,font='arial 14'. command=self.but_load_net)
         button_script=tk.Button(self,text='Script',width=25,height=3,font='arial 14', command=self.but_script)
         button_close=tk.Button(self,text='Clsoe app',width=25,height=3,font='arial 14', command=self.destroy)
 
@@ -92,7 +86,6 @@ class Top(tk.Tk):
         button_test.pack()
         button_save.pack()
         button_load.pack()
-        #button_lin.pack()
         button_script.pack()
         button_close.pack()
 
@@ -101,28 +94,26 @@ class Top(tk.Tk):
         open file and create train and test array
         only work with local variables Top class
         """
-        self.path = None
-        self.path  = tk.filedialog.askopenfilename()
-        if not self.path:
+        path  = tk.filedialog.askopenfilename()
+        if not path:
             return
-        f = open(self.path).readline()
+        f = open(path).readline()
         a=len(f.split())
         in_win=Entr_win(num_fld=2,lab_txt=["IN start", "IN end"], txt_fld=["1", a-1], title_txt="IN")
         self.wait_window(in_win)
         if not in_win.str_in:
             return
-        self.nn_in=in_win.str_in
+        nn_in=in_win.str_in
         out_win=Entr_win(num_fld=2,lab_txt=["OUT start", "OUT end"], txt_fld=[a, a], title_txt="OUT")
         self.wait_window(out_win)
         if not out_win.str_in:
             return
-        self.nn_out=out_win.str_in
-        a=np.loadtxt(self.path, unpack=True)
-        self.nn_in=a[int(self.nn_in[0])-1: int(self.nn_in[-1]), :]
-        self.nn_out=a[int(self.nn_out[0])-1 : int(self.nn_out[-1]), :]
+        nn_out=out_win.str_in
+        a=np.loadtxt(path, unpack=True)
+        self.nn_in=a[int(nn_in[0])-1: int(nn_in[-1]), :].T
+        self.nn_out=a[int(nn_out[0])-1 : int(nn_out[-1]), :].T
+        self.path=path
 
-        
-    
     def but_lm(self):
         """
         create and train pyrenn NN with LM optimization algorithm
@@ -137,7 +128,7 @@ class Top(tk.Tk):
             return
         lab_txt=[]
         txt_fld=[]
-        conf=[len(self.in_trn)]
+        conf=[self.nn_in.shape[-1]]
         for i in range(int(lay_win.str_in[0])):
             lab_txt.append(str(i+1)+"hidden layer")
             txt_fld.append(str(20))
@@ -147,10 +138,11 @@ class Top(tk.Tk):
             return
         for i in mod_win.str_in:
             conf.append(int(i))
-        conf.append(len(self.out_trn))
+        conf.append(self.nn_out.shape[-1])
         lab_txt=["MSE target","Number of epochs", "Minimum neurons", "Maximum neurons"]
         txt_fld=["0.01","50","15","80"]
-        conf_win=Entr_win(num_fld=4,lab_txt=lab_txt, txt_fld=txt_fld, title_txt="Model conguration", comb_txt=["No","Yes"],comb_lab_txt=["Choose the optimal number of neurons"], comb_num=1)
+        conf_win=Entr_win(num_fld=4,lab_txt=lab_txt, txt_fld=txt_fld, title_txt="Model conguration", comb_txt=["No","Yes"],
+        comb_lab_txt=["Selection of the number of neurons", "Train/test split","Use retrain?"], comb_num=3)
         self.wait_window(conf_win)
         if not conf_win.str_in:
             return
@@ -158,11 +150,28 @@ class Top(tk.Tk):
         n_epochs=int(conf_win.str_in[1])
         min_n=int(conf_win.str_in[2])
         max_n=int(conf_win.str_in[3])
-        nn_in_trn, nn_in_test=crt_valid(self.nn_in)
-        nn_out_trn, nn_out_test=crt_valid(self.nn_out)
-        self.nn_obj, conf = lm_NN(self.in_trn, self.out_trn, er_tar, min_n, max_n, n_epochs, conf=conf, sect_ner=conf_win.act[0], typ="LM")
-        y_pred = pred(self.nn_obj, self.in_test)
-        self.plot(conf, nn_in_trn, nn_out_trn, nn_in_test, nn_out_test, y_pred)
+        self.nn_obj, conf = lm_NN(self.nn_in.copy(), self.nn_out.copy(), er_tar, min_n, max_n, n_epochs, conf=conf, 
+        sect_ner=conf_win.act[0],train_test=conf_win.act[1], retrain=conf_win.act[2])
+        if conf_win.act[1] or conf_win.act[2]:
+            x=tr.from_numpy(self.nn_in).float()
+            y=tr.from_numpy((self.nn_out)).float()
+            dataset = tr.utils.data.TensorDataset(x, y)
+            a=int(len(dataset)*0.9)
+            data_trn,data_test=tr.utils.data.random_split(dataset, [a,int(len(dataset)-a)],generator=tr.Generator().manual_seed(42))
+            dataloader = tr.utils.data.DataLoader(data_trn, shuffle=False, batch_size=len(data_trn))
+            nn_in_trn=(next(iter(dataloader))[0].numpy())
+            nn_out_trn=(next(iter(dataloader))[1].numpy())
+            nn_in_test=data_test[:][0].numpy()
+            nn_out_test=data_test[:][1].numpy()
+            y_trn=pred(self.nn_obj, nn_in_trn).reshape(nn_out_trn.shape)
+            y_test=pred(self.nn_obj, nn_in_test).reshape(nn_out_test.shape)
+            loss_trn=loss(y_trn, nn_out_trn, self.nn_obj)
+            loss_test=loss(y_test, nn_out_test, self.nn_obj)
+            self.plot_split(conf, nn_in_trn, nn_out_trn, nn_in_test, nn_out_test, y_trn, y_test, loss_trn, loss_test)
+        else:
+            y_pred=pred(self.nn_obj, self.nn_in).reshape(self.nn_out.shape)
+            pred_loss=loss(y_pred, self.nn_out, self.nn_obj)
+            self.plot_orig(conf, self.nn_in, self.nn_out, y_pred, pred_loss)
         
     def but_lin(self):
         """
@@ -172,17 +181,29 @@ class Top(tk.Tk):
         if not self.path:
             tk.messagebox.showerror("Error", "Open file first")
             return
-        alpha=[]
-        beta=[]
-        for i in range(len(self.nn_in)):
-            alpha.append(1 / (np.max(self.nn_in[i]) - np.min(self.nn_in[i])))
-            beta.append(np.min(self.nn_in[i]))
-            
-            #self.nn_in[i] = (a[i] - beta[i]) * alpha[i]
-        for i in range(len(self.nn_out)):
-            alpha.append(1 / (np.max(self.nn_out[i]) - np.min(self.nn_out[i])))
-            beta.append(np.min(self.nn_out[i]))
-
+        lab_txt=[]
+        txt_fld=[]
+        min_ar=[]
+        max_ar=[]
+        for i in range(self.nn_in.shape[-1]):
+            lab_txt.append(str(i+1)+" column minimum")
+            txt_fld.append(min(self.nn_in[:,i]))
+            lab_txt.append(str(i+1)+" column maximum")
+            txt_fld.append(max(self.nn_in[:,i]))
+        for i in range(self.nn_out.shape[-1]):
+            lab_txt.append(str(i+1+self.nn_in.shape[-1])+" column minimum")
+            txt_fld.append(min(self.nn_out[:,i]))
+            lab_txt.append(str(i+1+self.nn_in.shape[-1])+" column maximum")
+            txt_fld.append(max(self.nn_out[:,i]))
+        min_max=Entr_win(num_fld=(self.nn_in.shape[-1]+self.nn_out.shape[-1])*2,lab_txt=lab_txt, txt_fld=txt_fld, title_txt="Num")
+        self.wait_window(min_max)
+        if not min_max.str_in:
+            return
+        for i in range(len(min_max.str_in)):
+            if i%2==0:
+                min_ar.append(float(min_max.str_in[i]))
+            else:
+                max_ar.append(float(min_max.str_in[i]))
         lay_win=Entr_win(num_fld=1,lab_txt=["Number of hidden layers"], txt_fld=[2], title_txt="Num")
         self.wait_window(lay_win)
         if not lay_win.str_in:
@@ -192,18 +213,19 @@ class Top(tk.Tk):
         comb_lab_txt=[]
         tr_funs=[]
         for i in range(int(lay_win.str_in[0])):
-            lab_txt.append(str(i+1)+"hidden layer")
+            lab_txt.append(str(i+1)+" hidden layer")
             txt_fld.append(str(20))
-            comb_lab_txt.append(str(i+1)+"layer activation function")
+            comb_lab_txt.append(str(i+1)+" layer activation function")
         comb_txt=["Tanh","Sigm","ReLU", "LeakyReLU"]
-        mod_win=Entr_win(num_fld=int(lay_win.str_in[0]),lab_txt=lab_txt, txt_fld=txt_fld, title_txt="Hidden layers configuration", comb_txt=comb_txt, comb_lab_txt=comb_lab_txt, comb_num=int(lay_win.str_in[0]))
+        mod_win=Entr_win(num_fld=int(lay_win.str_in[0]),lab_txt=lab_txt, txt_fld=txt_fld, title_txt="Hidden layers configuration", 
+        comb_txt=comb_txt, comb_lab_txt=comb_lab_txt, comb_num=int(lay_win.str_in[0]))
         self.wait_window(mod_win)
         if not mod_win.str_in:
             return
-        conf=[len(self.nn_in)]
+        conf=[self.nn_in.shape[-1]]
         for i in mod_win.str_in:
             conf.append(int(i))
-        conf.append(len(self.nn_out))
+        conf.append(self.nn_out.shape[-1])
         for i in mod_win.act:
             if i==0:
                 tr_funs.append(tr.nn.Tanh())
@@ -217,7 +239,8 @@ class Top(tk.Tk):
         tr_funs.append(0)
         lab_txt=["MSE target","Number of epochs","learning rate", "Minimum neurons", "Maximum neurons"]
         txt_fld=["0.01","200","0.001","15","80"]
-        conf_win=Entr_win(num_fld=5,lab_txt=lab_txt, txt_fld=txt_fld, title_txt="Model conguration", comb_txt=["No","Yes"],comb_lab_txt=["Choose the optimal number of neurons"], comb_num=1)
+        conf_win=Entr_win(num_fld=5,lab_txt=lab_txt, txt_fld=txt_fld, title_txt="Model conguration", comb_txt=["No","Yes"],
+        comb_lab_txt=["Choose the optimal number of neurons","Train/test split", "Use retrain?"], comb_num=3)
         self.wait_window(conf_win)
         if not conf_win.str_in:
             return
@@ -226,15 +249,30 @@ class Top(tk.Tk):
         lr=float(conf_win.str_in[2])
         min_n=int(conf_win.str_in[3])
         max_n=int(conf_win.str_in[4])
-        nn_in_trn, nn_in_test=crt_valid(self.nn_in)
-        nn_out_trn, nn_out_test, = crt_valid(self.nn_out)
+        self.nn_obj, conf = torch_NN(self.nn_in.copy(), self.nn_out.copy(), min_ar, max_ar, er_tar, min_n, max_n, n_epochs, conf, 
+        tr_funs, lr, sect_ner=conf_win.act[0], train_test=conf_win.act[1], retrain=conf_win.act[2])
 
+        if conf_win.act[1] or conf_win.act[2]:
+            x=tr.from_numpy(self.nn_in).float()
+            y=tr.from_numpy((self.nn_out)).float()
+            dataset = tr.utils.data.TensorDataset(x, y)
+            a=int(len(dataset)*0.9)
+            data_trn,data_test=tr.utils.data.random_split(dataset, [a,int(len(dataset)-a)],generator=tr.Generator().manual_seed(42))
+            dataloader = tr.utils.data.DataLoader(data_trn, shuffle=False, batch_size=len(data_trn))
+            nn_in_trn=(next(iter(dataloader))[0].numpy())
+            nn_out_trn=(next(iter(dataloader))[1].numpy())
+            nn_in_test=data_test[:][0].numpy()
+            nn_out_test=data_test[:][1].numpy()
+            y_trn=pred(self.nn_obj, nn_in_trn)
+            y_test=pred(self.nn_obj, nn_in_test)
+            loss_trn=loss(y_trn, nn_out_trn, self.nn_obj).item()
+            loss_test=loss(y_test, nn_out_test, self.nn_obj).item()
+            self.plot_split(conf, nn_in_trn, nn_out_trn, nn_in_test, nn_out_test, y_trn, y_test, loss_trn, loss_test)
+        else:
+            y_pred=pred(self.nn_obj, self.nn_in)
+            pred_loss=loss(y_pred, self.nn_out, self.nn_obj).item()
+            self.plot_orig(conf, self.nn_in, self.nn_out, y_pred, pred_loss)
 
-        alpha=tr.Tensor(alpha)
-        beta=tr.Tensor(beta)
-        self.nn_obj, conf = torch_NN(nn_in_trn, nn_out_trn, nn_in_test, nn_out_test, alpha, beta, er_tar, min_n, max_n, n_epochs, conf, tr_funs, sect_ner=conf_win.act[0], lr=lr)
-        y_pred = pred(self.nn_obj, nn_in_test)
-        self.plot(conf,nn_in_trn, nn_out_trn, nn_in_test, nn_out_test, y_pred)
 
     def but_pred(self):
         """
@@ -252,7 +290,7 @@ class Top(tk.Tk):
             return
         out=pred(self.nn_obj, self.nn_in)
         a=tk.filedialog.asksaveasfile()
-        np.savetxt(a, np.c_[np.array(self.nn_in).T, out], fmt='%1.3f')
+        np.savetxt(a, np.c_[np.array(self.nn_in), out], fmt='%1.3f')
     
     def but_test(self):
         """
@@ -304,44 +342,90 @@ class Top(tk.Tk):
         """
         sc.sc(self)
 
-    def plot(self, conf, nn_in_trn, nn_out_trn, nn_in_test, nn_out_test, y_pred):
+    def plot_orig(self, conf, nn_in_trn, nn_out_trn, y_pred, a):
         """
         draw plot with train, test, prediction data
         show NN congiguration and MSE for test data
         conf: list, NN configuration
         only work with local variables Top class
         """
-
         plot_win=tk.Toplevel()
+        plot_win.title("Plot")
         fig = Figure(figsize=(5, 4), dpi=100)
-        fig.add_subplot(111).plot(nn_in_trn[0], nn_out_trn[0], label="Train data")
-        fig.add_subplot(111).plot(nn_in_test[0], nn_out_test[0], label="Test data")
-        fig.add_subplot(111).plot(nn_in_test[0], y_pred[:,0], label="Prediction data")
+        fig.add_subplot(111).plot(nn_in_trn[:, 0], nn_out_trn[:, 0], label="Train data")
+        fig.add_subplot(111).plot(nn_in_trn[:, 0], y_pred[:, 0], label="Prediction data")
         fig.legend()
-        canvas = FigureCanvasTkAgg(fig, master=plot_win)  # A tk.DrawingArea.
+        canvas = FigureCanvasTkAgg(fig, master=plot_win)
         canvas.draw()
         canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
         toolbar = NavigationToolbar2Tk(canvas, plot_win)
         toolbar.update()
         canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-        lab1=tk.Label(plot_win,width=35, text="Model configuration"+str(conf[1:3]))
+        lab1=tk.Label(plot_win,width=35, text="Model configuration"+str(conf))
         lab1.pack()
-        a=float(loss(y_pred[:,0], nn_out_test[0], self.nn_obj))
-        lab2=tk.Label(plot_win,width=35, text="MSE= "+str(round(a,2))+"%")
+        lab2=tk.Label(plot_win,width=35, text="MSE= " + str(round(a,4)))
         lab2.pack()
+
+    def plot_split(self, conf, nn_in_trn, nn_out_trn, nn_in_test, nn_out_test, y_trn, y_test, a, b):
+        """
+        draw plot with train, test, prediction data
+        show NN congiguration and MSE for test data
+        conf: list, NN configuration
+        only work with local variables Top class
+        """
+        plot_win_trn=tk.Toplevel()
+        plot_win_trn.title("Train data dot plot")
+        fig = Figure(figsize=(5, 4), dpi=100)
+        fig.add_subplot(111).scatter(nn_in_trn[:, 0], nn_out_trn[:, 0], label="Train data", s=3)
+        fig.add_subplot(111).scatter(nn_in_trn[:, 0], y_trn[:, 0], label="Prediction on train data", s=5)
+        fig.legend()
+        canvas = FigureCanvasTkAgg(fig, master=plot_win_trn)
+        canvas.draw()
+        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+        toolbar = NavigationToolbar2Tk(canvas, plot_win_trn)
+        toolbar.update()
+        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        lab1=tk.Label(plot_win_trn,width=35, text="Model configuration"+str(conf))
+        lab1.pack()
+        lab2=tk.Label(plot_win_trn,width=35, text="Train data MSE= "+str(round(a,4)))
+        lab2.pack()
+        
+        plot_win_test=tk.Toplevel()
+        plot_win_test.title("Test data dot plot")
+        fig = Figure(figsize=(5, 4), dpi=100)
+        fig.add_subplot(111).scatter(nn_in_test[:, 0], nn_out_test[:, 0], label="Test data", s=3)
+        fig.add_subplot(111).scatter(nn_in_test[:, 0], y_test[:, 0], label="Prediction on test data",s=5)
+
+        fig.legend()
+        canvas = FigureCanvasTkAgg(fig, master=plot_win_test)
+        canvas.draw()
+        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+        toolbar = NavigationToolbar2Tk(canvas, plot_win_test)
+        toolbar.update()
+        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+        lab1=tk.Label(plot_win_test,width=35, text="Model configuration"+str(conf))
+        lab1.pack()
+        lab2=tk.Label(plot_win_test,width=35, text="Test data MSE= "+str(round(b,4)))
+        lab2.pack()
+        
+        
+    
+    
 
 class Net_tr(tr.nn.Module):
     """
     pytorch NN clacc
     """
-    def __init__(self, alpha, beta, sizes=[1,1], funs=[tr.nn.Sigmoid()]):
+    def __init__(self, sizes=[1,1], funs=[tr.nn.Sigmoid()]):
         """
         create torch NN
         """
         super().__init__()
-        self.alpha = tr.nn.Parameter(data=alpha, requires_grad=False)
-        self.beta = tr.nn.Parameter(data=beta, requires_grad=False)
+        self.alpha = tr.nn.Parameter(data=None, requires_grad=False)
+        self.beta = tr.nn.Parameter(data=None, requires_grad=False)
         if isinstance(sizes,(tuple,list)) and isinstance(funs,(tuple,list)):
             assert len(sizes)-1 == len(funs), 'len(funs) должно быть = len(sizes)-1'
         sizes = [1,int(sizes),1] if isinstance(sizes,int) else sizes 
@@ -355,7 +439,6 @@ class Net_tr(tr.nn.Module):
                 layers.append(f)
             left = right
         self.layers = tr.nn.Sequential(*layers)
-
 
     def forward(self, x):
         """
@@ -376,23 +459,18 @@ class Net_tr(tr.nn.Module):
             y[:,i]=(y[:,i] / self.alpha[in_num+i]) + self.beta[in_num+i]
         return y
 
-
-def crt_valid(a):
-    """
-    create train and test data from a data
-
-    return
-    a_trn: list, train data
-    a_ test: list, test data
-    """
-    a=a.tolist()
-    a_trn=[]
-    a_test=[]
-    for i in range(len(a)):
-        a_trn.append(a[i][0:int(len(a[i])*0.7)])
-        a_trn[i].extend(a[i][int(len(a[i])*0.8):])
-        a_test.append(a[i][int(len(a[i])*0.7) : int(len(a[i])*0.8)])
-    return a_trn, a_test
+    def alph_bet(self, x, y, min_ar, max_ar):
+        alpha=[]
+        beta=[]
+        for i in range(x.shape[-1]):
+            alpha.append(1 / (max_ar[i] - min_ar[i]))
+            beta.append(min_ar[i])
+            
+        for i in range(y.shape[-1]):
+            alpha.append(1 / (max_ar[i+x.shape[-1]] - min_ar[i+x.shape[-1]]))
+            beta.append(min_ar[i+x.shape[-1]])
+        self.alpha.data=tr.tensor(alpha)
+        self.beta.data=tr.tensor(beta)
 
 def loss(pred, target, nn_obj):
     """
@@ -408,7 +486,7 @@ def loss(pred, target, nn_obj):
         return tr.nn.functional.mse_loss(pred, target)
     
 
-def lm_NN(nn_in, nn_out, nn_in_test,nn_out_test, er_tar,  min_n=0, max_n=0, n_epochs=50, conf=[1,1,1], sect_ner=True):
+def lm_NN(nn_in, nn_out, er_tar,  min_n=0, max_n=0, n_epochs=50, conf=[1,1,1], sect_ner=False, train_test=False, retrain=False):
     """
     create and train pyrenn NN with LM optimization algorithm
     nn_in: list, train NN IN data
@@ -424,9 +502,24 @@ def lm_NN(nn_in, nn_out, nn_in_test,nn_out_test, er_tar,  min_n=0, max_n=0, n_ep
     nn_obj, NN object
     conf: list, NN neurons configuration
     """
-    nn_in=np.array(nn_in)
-    nn_out=np.array(nn_out)
+    if train_test or retrain:
+        x=tr.from_numpy(nn_in).float()
+        y=tr.from_numpy((nn_out)).float()
+        dataset = tr.utils.data.TensorDataset(x, y)
+        a=int(len(dataset)*0.9)
+        data_trn,data_test=tr.utils.data.random_split(dataset, [a,int(len(dataset)-a)],generator=tr.Generator().manual_seed(42))
+        dataloader = tr.utils.data.DataLoader(data_trn, shuffle=False, batch_size=len(data_trn))
+        nn_in=(next(iter(dataloader))[0].numpy()).T
+        nn_out=(next(iter(dataloader))[1].numpy()).T
+        nn_in_test=data_test[:][0].numpy().T
+        nn_out_test=data_test[:][1].numpy().T
+    else:
+        nn_in=nn_in.T
+        nn_out=nn_out.T
+
     if sect_ner:
+        if min_n>max_n:
+            print("Error: minimum neurons>maximum neurons")
         for i in range(1, len(conf)-1):
             min_loss=20000
             b=conf[i]
@@ -436,27 +529,33 @@ def lm_NN(nn_in, nn_out, nn_in_test,nn_out_test, er_tar,  min_n=0, max_n=0, n_ep
                 nn_obj = prn.train_LM(nn_in,nn_out,nn_obj,verbose=False,k_max=1,E_stop=1e-10)
                 y_pred = prn.NNOut(nn_in, nn_obj)
                 a=loss(y_pred, nn_out, nn_obj)
+                print("Current configuration:", conf, ";\t MSE:", a)
                 if a<min_loss:
                     min_loss=a
                     b=j
             conf[i]=b
+        print("Best configuration:", conf)
+        
     nn_obj = prn.CreateNN(conf)
     loss_test=[]
     for i in range(n_epochs):
-        nn_obj = prn.train_LM(nn_in,nn_out,nn_obj,verbose=False,k_max=1,E_stop=1e-5)
+        nn_obj = prn.train_LM(nn_in,nn_out,nn_obj,verbose=False,k_max=1,E_stop=1e-10)
         y_pred = prn.NNOut(nn_in, nn_obj)
         loss_val = loss(y_pred, nn_out, nn_obj)
-        y_pred_test=prn.NNOut(nn_in_test, nn_obj)
-        loss_test.append(loss(y_pred_test, nn_out_test, nn_obj))
-        if loss_test[-1]*3-(loss_test[-2]+loss_test[-3]+loss_test[-4])>=0 and i>3:
-            break
+        print("Train data MSE:", loss_val)
+        if train_test or retrain:
+            y_pred_test=prn.NNOut(nn_in_test, nn_obj)
+            loss_test.append(loss(y_pred_test, nn_out_test, nn_obj))
+            print("Test data MSE:", loss_test[-1])
+        if i>3 and retrain:
+            if loss_test[-1]*3-(loss_test[-2]+loss_test[-3]+loss_test[-4])>0:
+                print("Retraining")
+                return nn_obj, conf
         if loss_val<=er_tar:
             break
-    print((y_pred[:,i] - nn_obj.beta[3]) * nn_obj.beta[3])
-    print((nn_out_test[:,i] - nn_obj.beta[3]) * nn_obj.beta[3])
     return nn_obj, conf
 
-def torch_NN(nn_in, nn_out, nn_in_test, nn_out_test, alpha, beta, er_tar,  min_n=0, max_n=0, n_epochs=200, conf=[1,1,1], funs=[tr.nn.Sigmoid()], sect_ner=True, lr=0.001):
+def torch_NN(nn_in, nn_out, min_ar, max_ar, er_tar,  min_n=0, max_n=0, n_epochs=200, conf=[1,1,1], funs=[tr.nn.Sigmoid(), 0], lr=0.001, sect_ner=False, train_test=False, retrain=False):
     """
     create and train pytorch NN with ADAM optimization algorithm
     nn_in: list, train NN IN data
@@ -473,53 +572,66 @@ def torch_NN(nn_in, nn_out, nn_in_test, nn_out_test, alpha, beta, er_tar,  min_n
     nn_obj, NN object
     conf: list, NN neurons configuration
     """
-    nn_in=tr.from_numpy(np.array(nn_in).T).float()
-    nn_out=tr.from_numpy(np.array(nn_out).T).float()
-    nn_in_test=tr.from_numpy(np.array(nn_in_test).T).float()
-    nn_out_test=tr.from_numpy(np.array(nn_out_test).T).float()
-    dataset = tr.utils.data.TensorDataset(nn_in, nn_out) # inputs - входы, targets - выходы
-    dataloader = tr.utils.data.DataLoader(dataset, shuffle=False, batch_size=100) # Тебя интересует параметр batch_size (сколько данных за раз подавать в модель) и shuffle - перемешивать ли данные?
+    in_orig=tr.from_numpy(np.array(nn_in.copy())).float()
+    out_orig=tr.from_numpy(np.array(nn_out.copy())).float()
+    if train_test or retrain:
+        nn_in=tr.from_numpy(np.array(nn_in)).float()
+        nn_out=tr.from_numpy(np.array(nn_out)).float()
+        dataset = tr.utils.data.TensorDataset(nn_in, nn_out)
+        a=int(len(dataset)*0.9)
+        data_trn, data_test=tr.utils.data.random_split(dataset, [a,int(len(dataset)-a)],generator=tr.Generator().manual_seed(42))
+        dataloader = tr.utils.data.DataLoader(data_trn, shuffle=False, batch_size=len(data_trn))
+    else:
+        nn_in=tr.from_numpy(np.array(nn_in)).float()
+        nn_out=tr.from_numpy(np.array(nn_out)).float()
+        dataset = tr.utils.data.TensorDataset(nn_in, nn_out)
+        a=int(len(dataset)*0.9)
+        dataloader = tr.utils.data.DataLoader(dataset, shuffle=False, batch_size=len(dataset))
+        
     if sect_ner:
         for i in range(1, len(conf)-1):
             min_loss=200000
             b=conf[i]
             for j in range(min_n, max_n+1):
                 conf[i]=j
-                nn_obj = Net_tr(alpha, beta, conf, funs)
+                nn_obj = Net_tr(conf, funs)
+                nn_obj.alph_bet(in_orig,out_orig, min_ar, max_ar)
                 optimizer = tr.optim.Adam(nn_obj.parameters(), lr=lr)
                 y_pred = nn_obj.forward(nn_in)
                 loss_val = loss(y_pred, nn_out, nn_obj)
+                a=loss_val.item()
+                print("Current configuration:", conf, ";\t MSE:", a)
                 loss_val.backward()
                 optimizer.step()
-                a=loss(y_pred, nn_out, nn_obj)
-                if a.item()<min_loss:
-                    min_loss=a.item()
+                if a<min_loss:
+                    min_loss=a
                     b=j
             conf[i]=b
-    nn_obj = Net_tr(alpha, beta, sizes=conf, funs=funs)
+        print("Best configuration:", conf)
+    nn_obj = Net_tr(conf, funs)
     optimizer = tr.optim.Adam(nn_obj.parameters(), lr=lr)
+    nn_obj.alph_bet(in_orig,out_orig, min_ar, max_ar)
     loss_test=[]
     for epoch_index in range(n_epochs):
-        loss_val_ar=[]
-        loss_test_hist=[]
+        loss_test=[]
         for nn_in, nn_out in dataloader:
             optimizer.zero_grad()
             y_pred = nn_obj.forward(nn_in)
             loss_val = loss(y_pred, nn_out, nn_obj)
-            y_pred_test=nn_obj.forward(nn_in_test)
-            loss_test_hist.append(loss(y_pred_test, nn_out_test, nn_obj).item())
+            print("Train data MSE:", loss_val.item())
+            if train_test or retrain:    
+                y_pred_test=nn_obj.forward(data_test[:][0])
+                loss_test.append(loss(y_pred_test, data_test[:][1], nn_obj).item())
+                print("Test data MSE:", loss_test[-1].item())
             if loss_val<=er_tar:
                 break
             loss_val.backward()
             optimizer.step()
-            loss_val_ar.append(loss_val.item())
-        loss_test.append(np.array(loss_test_hist.mean()))
-        if epoch_index>3:
+        if epoch_index>3 and retrain:
             if loss_test[-1]*3-(loss_test[-2]+loss_test[-3]+loss_test[-4])>0:
                 print("Retraining")
                 nn_obj.eval()
                 return nn_obj, conf
-        print(np.array(loss_val_ar).mean())
     nn_obj.eval()
     return nn_obj, conf
 
@@ -534,9 +646,9 @@ def pred(nn_obj, nn_in):
     y_pred: np.array, predicted data
     """
     if isinstance(nn_obj, dict):
-        y_pred = prn.NNOut(np.array(nn_in), nn_obj)
+        y_pred = prn.NNOut(np.array(nn_in.T), nn_obj)
     elif isinstance(nn_obj, Net_tr):
-        y_pred = nn_obj.forward(tr.from_numpy(np.array(nn_in).T).float()).detach().numpy()
+        y_pred = nn_obj.forward(tr.from_numpy(np.array(nn_in)).float()).detach().numpy()
     return y_pred
 
 def test(nn_obj, nn_in, nn_out):
