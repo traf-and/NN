@@ -1,4 +1,3 @@
-from tkinter.constants import NO
 import numpy as np
 import torch as tr
 import pyrenn as prn
@@ -12,7 +11,20 @@ import script as sc
 
 
 class Entr_win(tk.Toplevel):
+    """
+    Data entry window class
+    """
     def __init__(self, num_fld=1, lab_txt=["1"], txt_fld=["1"], title_txt="test", comb_txt=[],comb_lab_txt=[], comb_num=0):
+        """
+        Create data entry window 
+        self: Entr_win 
+        num_fld: int, num of forms
+        lab_txt: list, form signatures
+        txt_fld: list, default text in forms
+        comb_txt: list, dropdown values, applies to all dropdowns
+        comb_lab_txt: list, dropdown signatures
+        comb_num: int, num of dropdown
+        """
         super().__init__()
         self.str_in=[]
         self.title(title_txt)
@@ -47,6 +59,9 @@ class Entr_win(tk.Toplevel):
         but_ac.pack()
         self.mainloop
     def ins(self):
+        """
+        Internal function for filling arrays
+        """
         for i in self.name:
             self.str_in.append(i.get())
         for i in self.comb:
@@ -56,9 +71,14 @@ class Entr_win(tk.Toplevel):
 
 
 class Top(tk.Tk):
+    """
+    Main window class
+    """
     def __init__(self):
+        """
+        Create main window class 
+        """
         super().__init__()
-
         self.path = None # file path
         self.nn_in = [] # file IN
         self.nn_out = [] # file OUT
@@ -94,7 +114,7 @@ class Top(tk.Tk):
         open file and create train and test array
         only work with local variables Top class
         """
-        path  = tk.filedialog.askopenfilename()
+        path  = tk.filedialog.askopenfilename(filetypes = [('File','*.txt')])
         if not path:
             return
         f = open(path).readline()
@@ -289,7 +309,7 @@ class Top(tk.Tk):
             tk.messagebox.showerror("Error", "Open file first")
             return
         out=pred(self.nn_obj, self.nn_in)
-        a=tk.filedialog.asksaveasfile()
+        a=tk.filedialog.asksaveasfile(filetypes = [('Prediction file','*.txt')])
         np.savetxt(a, np.c_[np.array(self.nn_in), out], fmt='%1.3f')
     
     def but_test(self):
@@ -301,13 +321,18 @@ class Top(tk.Tk):
             tk.messagebox.showerror("Error", "Open file first")
             return
         elif not self.nn_obj:
-            tk.messagebox.showerror("Error", "Create NN")
+            tk.messagebox.showerror("Error", "Create or open NN")
             return
         elif not self.nn_obj and not self.nn_in:
             tk.messagebox.showerror("Error", "Open file and create NN")
             return
-        test_loss=test(self.nn_obj, self.nn_in, self.nn_out)
-        tk.messagebox.showinfo("MSE", "Mse=" + str(test_loss)+"%")
+        if isinstance(self.nn_obj, dict):
+            y_pred=pred(self.nn_obj, self.nn_in).reshape(self.nn_out.shape)
+            test_loss=loss(y_pred, self.nn_out, self.nn_obj)    
+        elif isinstance(self.nn_obj, Net_tr):
+            y_pred=pred(self.nn_obj, self.nn_in)
+            test_loss=loss(y_pred, self.nn_out, self.nn_obj).item()
+        tk.messagebox.showinfo("MSE", "Mse=" + str(test_loss))
 
     def but_save_net(self):
         """
@@ -328,13 +353,9 @@ class Top(tk.Tk):
         Load NN object from file
         only work with local variables Top class
         """
-        a = tk.filedialog.askopenfilename()
+        a = tk.filedialog.askopenfilename(filetypes = [('NN file',['*.csv','*.pt'])])
         self.nn_obj=load_nn(a)
 
-    """
-    def but_lin(self):
-        pass
-    """
     def but_script(self):
         """
         executes a script from a file script.py
@@ -344,16 +365,21 @@ class Top(tk.Tk):
 
     def plot_orig(self, conf, nn_in_trn, nn_out_trn, y_pred, a):
         """
-        draw plot with train, test, prediction data
+        draw plot with train, prediction data
         show NN congiguration and MSE for test data
+        self: Top window class
         conf: list, NN configuration
-        only work with local variables Top class
+        nn_in_trn: list, original input
+        nn_out_trn: list, original output
+        y_pred: list, prediction data
+        a: float, loss
         """
         plot_win=tk.Toplevel()
         plot_win.title("Plot")
         fig = Figure(figsize=(5, 4), dpi=100)
-        fig.add_subplot(111).plot(nn_in_trn[:, 0], nn_out_trn[:, 0], label="Train data")
-        fig.add_subplot(111).plot(nn_in_trn[:, 0], y_pred[:, 0], label="Prediction data")
+        ax=fig.add_subplot(111)
+        ax.plot(nn_in_trn[:, 0], nn_out_trn[:, 0], label="Train data")
+        ax.plot(nn_in_trn[:, 0], y_pred[:, 0], label="Prediction data")
         fig.legend()
         canvas = FigureCanvasTkAgg(fig, master=plot_win)
         canvas.draw()
@@ -369,16 +395,25 @@ class Top(tk.Tk):
 
     def plot_split(self, conf, nn_in_trn, nn_out_trn, nn_in_test, nn_out_test, y_trn, y_test, a, b):
         """
-        draw plot with train, test, prediction data
+          draw plot with train, prediction data
         show NN congiguration and MSE for test data
+        self: Top window class
         conf: list, NN configuration
-        only work with local variables Top class
+        nn_in_trn: list, original train input
+        nn_out_trn: list, original train output
+        nn_in_test: list, original test input
+        nn_out_test: list, original test output
+        y_trn: list, prediction on train data
+        y_test: list, prediction on test data
+        a: float, loss on train data
+        b: float, loss on test data
         """
         plot_win_trn=tk.Toplevel()
         plot_win_trn.title("Train data dot plot")
         fig = Figure(figsize=(5, 4), dpi=100)
-        fig.add_subplot(111).scatter(nn_in_trn[:, 0], nn_out_trn[:, 0], label="Train data", s=3)
-        fig.add_subplot(111).scatter(nn_in_trn[:, 0], y_trn[:, 0], label="Prediction on train data", s=5)
+        ax=fig.add_subplot(111)
+        ax.scatter(nn_in_trn[:, 0], nn_out_trn[:, 0], label="Train data", s=3)
+        ax.scatter(nn_in_trn[:, 0], y_trn[:, 0], label="Prediction on train data", s=5)
         fig.legend()
         canvas = FigureCanvasTkAgg(fig, master=plot_win_trn)
         canvas.draw()
@@ -395,8 +430,9 @@ class Top(tk.Tk):
         plot_win_test=tk.Toplevel()
         plot_win_test.title("Test data dot plot")
         fig = Figure(figsize=(5, 4), dpi=100)
-        fig.add_subplot(111).scatter(nn_in_test[:, 0], nn_out_test[:, 0], label="Test data", s=3)
-        fig.add_subplot(111).scatter(nn_in_test[:, 0], y_test[:, 0], label="Prediction on test data",s=5)
+        ax=fig.add_subplot(111)
+        ax.scatter(nn_in_test[:, 0], nn_out_test[:, 0], label="Test data", s=3)
+        ax.scatter(nn_in_test[:, 0], y_test[:, 0], label="Prediction on test data",s=5)
 
         fig.legend()
         canvas = FigureCanvasTkAgg(fig, master=plot_win_test)
@@ -417,11 +453,14 @@ class Top(tk.Tk):
 
 class Net_tr(tr.nn.Module):
     """
-    pytorch NN clacc
+    pytorch NN class
     """
     def __init__(self, sizes=[1,1], funs=[tr.nn.Sigmoid()]):
         """
         create torch NN
+        sizes: list, model configuration, sizes[0]-num of inputs, sizes[-1]-num of inputs, 
+            other- num of neurons on hidden layers (one value=one layer)
+        funs: list, list of activation functions
         """
         super().__init__()
         self.alpha = tr.nn.Parameter(data=None, requires_grad=False)
@@ -443,7 +482,7 @@ class Net_tr(tr.nn.Module):
     def forward(self, x):
         """
         prediction based on input x
-        x: list, IN data
+        x: tensor, IN data
 
         return
         predicted data
@@ -460,6 +499,13 @@ class Net_tr(tr.nn.Module):
         return y
 
     def alph_bet(self, x, y, min_ar, max_ar):
+        """
+        computes and guards variables to normalize
+        x: tensor, input data
+        y: tensor, output data
+        min_ar: list, list of minimal for each col
+        max: list, list of maximum for each col
+        """
         alpha=[]
         beta=[]
         for i in range(x.shape[-1]):
@@ -475,7 +521,9 @@ class Net_tr(tr.nn.Module):
 def loss(pred, target, nn_obj):
     """
     calculate MSE
-
+    pred: list, prediction data
+    target: list, original output
+    nn_obj: NN object
     return MSE
     """
     if isinstance(nn_obj, dict):
@@ -496,7 +544,9 @@ def lm_NN(nn_in, nn_out, er_tar,  min_n=0, max_n=0, n_epochs=50, conf=[1,1,1], s
     max_n: int, maximum neurons for selection of the number of neurons
     n_epochs: int, maximum NN train epochs
     conf: list, NN configuration, first element- numbers of input, last element - numbers of outputs, other elemnts - number of neuronus on hidden layers
-    sect_ner: bool, whether to select the number of neurons, True if yes, Flase if no
+    sect_ner: bool or 0/1, whether to select the number of neurons, True if yes, False if no
+    train_test: bool or 0/1, should the input sample be separated into training and test
+    retrain: bool or 0/1, overfitting protection
 
     return
     nn_obj, NN object
@@ -560,13 +610,18 @@ def torch_NN(nn_in, nn_out, min_ar, max_ar, er_tar,  min_n=0, max_n=0, n_epochs=
     create and train pytorch NN with ADAM optimization algorithm
     nn_in: list, train NN IN data
     nn_out: list, train OUT data
+    min_ar: list, list of minimum for each col
+    min_ar: list, list of maximum for each col
     er_tar: float, MSE target
     min_n: int, minimum neurons for selection of the number of neurons
     max_n: int, maximum neurons for selection of the number of neurons
     n_epochs: int, maximum NN train epochs
     conf: list, NN configuration, first element- numbers of input, last element - numbers of outputs, other elemnts - number of neuronus on hidden layers
     funs: lsit, list of activation functions for each layer
+    lr: float, learning rate
     sect_ner: bool, whether to select the number of neurons, True if yes, Flase if no
+    train_test: bool or 0/1, should the input sample be separated into training and test
+    retrain: bool or 0/1, overfitting protection
 
     return
     nn_obj, NN object
@@ -613,25 +668,29 @@ def torch_NN(nn_in, nn_out, min_ar, max_ar, er_tar,  min_n=0, max_n=0, n_epochs=
     nn_obj.alph_bet(in_orig,out_orig, min_ar, max_ar)
     loss_test=[]
     for epoch_index in range(n_epochs):
-        loss_test=[]
         for nn_in, nn_out in dataloader:
             optimizer.zero_grad()
             y_pred = nn_obj.forward(nn_in)
             loss_val = loss(y_pred, nn_out, nn_obj)
-            print("Train data MSE:", loss_val.item())
+            if epoch_index%10==0:
+                print("Train data MSE:", loss_val.item())
             if train_test or retrain:    
                 y_pred_test=nn_obj.forward(data_test[:][0])
                 loss_test.append(loss(y_pred_test, data_test[:][1], nn_obj).item())
-                print("Test data MSE:", loss_test[-1].item())
+                if epoch_index%10==0:
+                    print("Test data MSE:", loss_test[-1])
             if loss_val<=er_tar:
                 break
-            loss_val.backward()
-            optimizer.step()
-        if epoch_index>3 and retrain:
-            if loss_test[-1]*3-(loss_test[-2]+loss_test[-3]+loss_test[-4])>0:
-                print("Retraining")
+            if epoch_index>3 and retrain:
+                if loss_test[-1]*3-(loss_test[-2]+loss_test[-3]+loss_test[-4])>0:
+                    print("\nRetraining")
+                    nn_obj.eval()
+                    return nn_obj, conf
+            if epoch_index==n_epochs-1:
                 nn_obj.eval()
                 return nn_obj, conf
+            loss_val.backward()
+            optimizer.step()
     nn_obj.eval()
     return nn_obj, conf
 
@@ -639,7 +698,7 @@ def torch_NN(nn_in, nn_out, min_ar, max_ar, er_tar,  min_n=0, max_n=0, n_epochs=
 def pred(nn_obj, nn_in):
     """ 
     crete prediction with NN and IN data
-    nn_obj, NN
+    nn_obj, NN object
     nn_in: list, IN data
 
     return 
@@ -650,19 +709,6 @@ def pred(nn_obj, nn_in):
     elif isinstance(nn_obj, Net_tr):
         y_pred = nn_obj.forward(tr.from_numpy(np.array(nn_in)).float()).detach().numpy()
     return y_pred
-
-def test(nn_obj, nn_in, nn_out):
-    """
-    calculate MSE for NN
-    nn_obj, NN
-    nn_in: lsit, IN data
-
-    return
-    MSE
-    """
-    y_pred=pred(nn_obj, nn_in)
-    mse=loss(y_pred, nn_out, nn_obj)
-    return mse
 
 def save_nn(nn_obj, path):
     """
