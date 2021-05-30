@@ -316,7 +316,7 @@ class Top(tk.Tk):
     
     def but_test(self):
         """
-        Calculates MSE and displays it
+        Calculates loss and display it
         only work with local variables Top class
         """
         if not self.path:
@@ -518,11 +518,11 @@ class Net_tr(tr.nn.Module):
 
 def loss(pred, target, nn_obj):
     """
-    calculate MSE
+    calculate loss
     pred: list, prediction data
     target: list, original output
     nn_obj: NN object
-    return MSE
+    return loss
     """
     if isinstance(nn_obj, dict):
         N=pred.shape[0]
@@ -581,7 +581,7 @@ def lm_NN(nn_in, nn_out, er_tar,  min_n=0, max_n=0, n_epochs=50, conf=[1,1,1], s
                 nn_obj = prn.train_LM(nn_in,nn_out,nn_obj,verbose=False,k_max=1,E_stop=1e-10)
                 y_pred = prn.NNOut(nn_in, nn_obj)
                 a=loss(y_pred, nn_out, nn_obj)
-                print("Current configuration:", conf, ";\t MSE:", a)
+                print("Current configuration:", conf, ";\t Loss:", a, "%")
                 if a<min_loss:
                     min_loss=a
                     b=j
@@ -595,7 +595,7 @@ def lm_NN(nn_in, nn_out, er_tar,  min_n=0, max_n=0, n_epochs=50, conf=[1,1,1], s
         nn_obj = prn.train_LM(nn_in,nn_out,nn_obj,verbose=False,k_max=1,E_stop=1e-10)
         y_pred = prn.NNOut(nn_in, nn_obj)
         loss_val.append(loss(y_pred, nn_out, nn_obj))
-        print("Train data MSE:", loss_val[-1])
+        print("Train data loss:", loss_val[-1], "%")
         if i == 0:
             lin_tr, can_tr=loss_plot(i, loss_val, "Train data loss")
         else:
@@ -603,7 +603,7 @@ def lm_NN(nn_in, nn_out, er_tar,  min_n=0, max_n=0, n_epochs=50, conf=[1,1,1], s
         if train_test or retrain:
             y_pred_test=prn.NNOut(nn_in_test, nn_obj)
             loss_test.append(loss(y_pred_test, nn_out_test, nn_obj))
-            print("Test data MSE:", loss_test[-1])
+            print("Test data loss:", loss_test[-1], "%")
             if i == 0:
                 lin_test, can_test=loss_plot(i, loss_test, "Test data loss")
             else:
@@ -651,7 +651,6 @@ def torch_NN(nn_in, nn_out, min_ar, max_ar, er_tar,  min_n=0, max_n=0, n_epochs=
         nn_in=tr.from_numpy(np.array(nn_in)).float()
         nn_out=tr.from_numpy(np.array(nn_out)).float()
         dataset = tr.utils.data.TensorDataset(nn_in, nn_out)
-        #a=int(len(dataset)*0.9)
         dataloader = tr.utils.data.DataLoader(dataset, shuffle=False, batch_size=len(dataset))
         
     if sect_ner:
@@ -666,7 +665,7 @@ def torch_NN(nn_in, nn_out, min_ar, max_ar, er_tar,  min_n=0, max_n=0, n_epochs=
                 y_pred = nn_obj.forward(nn_in)
                 loss_val = loss(y_pred, nn_out, nn_obj)
                 a=loss_val.item()
-                print("Current configuration:", conf, ";\t MSE:", a)
+                print("Current configuration:", conf, ";\t Loss:", a, "%")
                 loss_val.backward()
                 optimizer.step()
                 if a<min_loss:
@@ -687,7 +686,7 @@ def torch_NN(nn_in, nn_out, min_ar, max_ar, er_tar,  min_n=0, max_n=0, n_epochs=
             loss_val = loss(y_pred, nn_out, nn_obj)
             loss_tr.append(loss_val.item())
             if epoch_index%10==0:
-                print("Train data MSE:", loss_val.item())
+                print("Train data loss:", loss_val.item(), "%")
             if epoch_index == 0:
                 lin_tr, can_tr=loss_plot(epoch_index, loss_tr, "Train data loss")
             else:
@@ -697,7 +696,7 @@ def torch_NN(nn_in, nn_out, min_ar, max_ar, er_tar,  min_n=0, max_n=0, n_epochs=
                 y_pred_test=nn_obj.forward(data_test[:][0])
                 loss_test.append(loss(y_pred_test, data_test[:][1], nn_obj).item())
                 if epoch_index%10==0:
-                    print("Test data MSE:", loss_test[-1])
+                    print("Test data loss:", loss_test[-1], "%")
                 if epoch_index == 0:
                     lin_test, can_test=loss_plot(epoch_index, loss_test, "Test data loss")
                 else:
