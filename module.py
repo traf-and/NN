@@ -6,6 +6,7 @@ from tkinter import Canvas, ttk
 import numpy as np
 from matplotlib.figure import Figure 
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,NavigationToolbar2Tk)
+from sys import path, platform
 import script as sc
 
 
@@ -311,8 +312,13 @@ class Top(tk.Tk):
             tk.messagebox.showerror("Error", "Open file first")
             return
         out=pred(self.nn_obj, self.nn_in)
-        a=tk.filedialog.asksaveasfile(filetypes = [('Prediction file','*.txt')])
-        np.savetxt(a, np.c_[np.array(self.nn_in), out], fmt='%1.3f')
+        if platform == "linux" or platform == "linux2":
+            path=tk.filedialog.asksaveasfilename(filetypes = [('Prediction file','.txt')])
+        elif platform == "win32":
+            path=tk.filedialog.asksaveasfilename(filetypes = [('Prediction file','.txt')], defaultextension="*.*")
+        else:
+            path=tk.filedialog.asksaveasfilename(filetypes = [('Prediction file','.txt')])
+        np.savetxt(path, np.c_[np.array(self.nn_in), out], fmt='%1.3f')
     
     def but_test(self):
         """
@@ -342,13 +348,23 @@ class Top(tk.Tk):
         only work with local variables Top class
         """
         if isinstance(self.nn_obj, dict):
-            a=tk.filedialog.asksaveasfilename(filetypes = [('LM NN file','*.csv')])    
+            if platform == "linux" or platform == "linux2":
+                path=tk.filedialog.asksaveasfilename(filetypes = [('LM NN file','.csv')])
+            elif platform == "win32":
+                path=tk.filedialog.asksaveasfilename(filetypes = [('LM NN file','.csv')], defaultextension="*.*")
+            else:
+                path=tk.filedialog.asksaveasfilename(filetypes = [('LM NN file','.csv')])
         elif isinstance(self.nn_obj, Net_tr):
-            a=tk.filedialog.asksaveasfilename(filetypes = [("Torch NN file","*.pt")])
+            if platform == "linux" or platform == "linux2":
+                path=tk.filedialog.asksaveasfilename(filetypes = [("Torch NN file",".pt")])
+            elif platform == "win32":
+                path=tk.filedialog.asksaveasfilename(filetypes = [("Torch NN file",".pt")], defaultextension="*.*")
+            else:
+                path=tk.filedialog.asksaveasfilename(filetypes = [("Torch NN file",".pt")])
         else:
             tk.messagebox.showerror("Error", "Crete NN")
             return
-        save_nn(self.nn_obj, a)
+        save_nn(self.nn_obj, path)
 
     def but_load_net(self):
         """
