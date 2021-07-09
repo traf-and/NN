@@ -46,7 +46,7 @@ class Entr_win(tk.Toplevel):
             self.name[i]=tk.StringVar()
             ent[i]=tk.Entry(self,textvariable=self.name[i])
             ent[i].insert(0, txt_fld[i])
-            lab[i] = tk.Label(self,width=20, text=lab_txt[i])
+            lab[i] = tk.Label(self,width=15, text=lab_txt[i])
             lab[i].pack()
             ent[i].pack()
         for i in range(comb_num):
@@ -90,15 +90,15 @@ class Top(tk.Tk):
         self.out_trn = [] # test IN list
         self.out_test=[] # test OUT list
         self.title("NN")
-        button_open=tk.Button(self,text='Open File',width=25,height=3,font='arial 14', command=self.but_open_file)
-        button_lm=tk.Button(self,text='NN LM',width=25,height=3,font='arial 14', command=self.but_lm)
-        button_lin=tk.Button(self,text='NN Lin',width=25,height=3,font='arial 14', command=self.but_lin)
-        button_pred=tk.Button(self,text='Predict',width=25,height=3,font='arial 14', command=self.but_pred)
-        button_test=tk.Button(self,text='Test',width=25,height=3,font='arial 14', command=self.but_test)
-        button_save=tk.Button(self,text='Save NN',width=25,height=3,font='arial 14', command=self.but_save_net)
-        button_load=tk.Button(self,text='Load NN',width=25,height=3,font='arial 14', command=self.but_load_net)
-        button_script=tk.Button(self,text='Script',width=25,height=3,font='arial 14', command=self.but_script)
-        button_close=tk.Button(self,text='Clsoe app',width=25,height=3,font='arial 14', command=self.destroy)
+        button_open=tk.Button(self,text='Open File',width=15,height=2,font='arial 14', command=self.but_open_file)
+        button_lm=tk.Button(self,text='NN LM',width=15,height=2,font='arial 14', command=self.but_lm)
+        button_lin=tk.Button(self,text='NN Lin',width=15,height=2,font='arial 14', command=self.but_lin)
+        button_pred=tk.Button(self,text='Predict',width=15,height=2,font='arial 14', command=self.but_pred)
+        button_test=tk.Button(self,text='Test',width=15,height=2,font='arial 14', command=self.but_test)
+        button_save=tk.Button(self,text='Save NN',width=15,height=2,font='arial 14', command=self.but_save_net)
+        button_load=tk.Button(self,text='Load NN',width=15,height=2,font='arial 14', command=self.but_load_net)
+        button_script=tk.Button(self,text='Script',width=15,height=2,font='arial 14', command=self.but_script)
+        button_close=tk.Button(self,text='Clsoe',width=15,height=2,font='arial 14', command=self.destroy)
 
         button_open.pack()
         button_lm.pack()
