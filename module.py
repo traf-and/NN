@@ -98,7 +98,7 @@ class Top(tk.Tk):
         button_save=tk.Button(self,text='Save NN',width=15,height=2,font='arial 14', command=self.but_save_net)
         button_load=tk.Button(self,text='Load NN',width=15,height=2,font='arial 14', command=self.but_load_net)
         button_script=tk.Button(self,text='Script',width=15,height=2,font='arial 14', command=self.but_script)
-        button_close=tk.Button(self,text='Clsoe',width=15,height=2,font='arial 14', command=self.destroy)
+        button_close=tk.Button(self,text='Close',width=15,height=2,font='arial 14', command=self.destroy)
 
         button_open.pack()
         button_lm.pack()
@@ -784,6 +784,8 @@ def loss_plot(x, y, title):
     pl_win.title(title)
     fig = Figure(figsize=(5, 4), dpi=100)
     ax=fig.add_subplot(111)
+    ax.set_xlabel('epoch')
+    ax.set_ylabel('error, %')
     ax.plot(np.arange(0,x+1), y, 'r')
     canvas = FigureCanvasTkAgg(fig, master=pl_win)
     canvas.draw()
